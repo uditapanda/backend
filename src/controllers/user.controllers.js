@@ -8,8 +8,13 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 const registerUser = asyncHandler( async (req, res) => {
     //get user details from frontend
 
+    if (!req.body) {
+       throw new ApiError(400, "No data received in request body"); //to give error if user sent nothing
+    }
+
+
     const {fullName, username, email, password} = req.body
-    console.log("email:", email);
+    //console.log("email:", email);
 
     //validation (not empty, valid email)
 
@@ -21,15 +26,18 @@ const registerUser = asyncHandler( async (req, res) => {
         throw new ApiError(400, "ALL FIELDS ARE REQUIRED!!")
     }
 
-    if(!email.includes("@") || !email.includes(".")){
+    if(typeof email !== "string" || !email.includes("@") || !email.includes(".")){
         throw new ApiError(400, "Please enter a valid email address")
     }
 
     //check if user already exists: check either email or username or both
     
-    const existingUser = User.findOne({
+    const existingUser = await User.findOne({
         $or: [{username}, {email}]
     })  
+
+    console.log("Checking for existing user with:", { email, username });
+
     
     if (existingUser) {
         throw new ApiError(409, "User already exists with this email or username")
@@ -37,12 +45,22 @@ const registerUser = asyncHandler( async (req, res) => {
 
     //check for avatar n images
 
+
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     if(!avatarLocalPath){
         throw new ApiError(400, "Avatar is required")
     }
+
+    let coverImageLocalPath;
+    if(
+       req.files && 
+       Array.isArray(req.files.coverImage) &&
+       req.files.coverImage.length > 0
+       ){
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
+
 
 
     //if exists, upload them to cloudinary, avatar check too
@@ -58,7 +76,7 @@ const registerUser = asyncHandler( async (req, res) => {
     //create user object, create entry in database
 
     const user = await User.create({
-        fullName,
+        fullname: fullName,
         avatar: avatar.url,
         coverImage: coverImage?.url || "",
         email,
